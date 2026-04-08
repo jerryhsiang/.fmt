@@ -11,6 +11,9 @@ class BaseProvider(ABC):
     @abstractmethod
     def generate(self, request: GenerateRequest) -> GenerateResult: ...
 
+    @abstractmethod
+    async def agenerate(self, request: GenerateRequest) -> GenerateResult: ...
+
     @classmethod
     def supported_constraints(cls) -> list[str]:
         return ["json_schema", "choice"]

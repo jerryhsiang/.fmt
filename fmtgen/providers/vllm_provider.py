@@ -92,6 +92,73 @@ class VllmProvider(BaseProvider):
             constraint_type=constraint_type.value,
         )
 
+    async def agenerate(self, request: GenerateRequest) -> GenerateResult:
+        try:
+            from openai import AsyncOpenAI
+        except ImportError as e:
+            raise ProviderError(
+                "vllm",
+                "openai package is required for vLLM provider. "
+                "Install with: pip install fmtgen[openai]",
+            ) from e
+        client = AsyncOpenAI(base_url=self._base_url, api_key="EMPTY", **self._kwargs)
+        constraint_type = request.constraint_type
+
+        messages = [{"role": "user", "content": request.prompt}]
+        extra_body: dict[str, Any] = {}
+
+        if self._guided_backend:
+            extra_body["guided_decoding_backend"] = self._guided_backend
+
+        if constraint_type == ConstraintType.JSON_SCHEMA and request.schema is not None:
+            schema = pydantic_to_json_schema(request.schema)
+            extra_body["guided_json"] = schema
+        elif constraint_type == ConstraintType.REGEX and request.regex is not None:
+            extra_body["guided_regex"] = request.regex
+        elif constraint_type == ConstraintType.GRAMMAR and request.grammar is not None:
+            extra_body["guided_grammar"] = request.grammar
+        elif constraint_type == ConstraintType.CHOICE and request.choice is not None:
+            extra_body["guided_choice"] = request.choice
+
+        with Timer() as timer:
+            try:
+                response = await client.chat.completions.create(
+                    model=request.model_name,
+                    messages=messages,  # type: ignore[arg-type]
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens,
+                    extra_body=extra_body if extra_body else None,
+                )
+            except Exception as e:
+                raise ProviderError("vllm", str(e)) from e
+
+        if not response.choices:
+            raise ProviderError(
+                "vllm", "API returned empty choices (content may have been filtered)"
+            )
+        raw = response.choices[0].message.content or ""
+
+        parsed: Any = raw
+        if request.schema is not None:
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as e:
+                raise ProviderError(
+                    "vllm", f"Failed to parse JSON from model output: {raw[:200]}"
+                ) from e
+            parsed = request.schema.model_validate(data)
+
+        return GenerateResult(
+            raw=raw,
+            parsed=parsed,
+            backend_used=self._guided_backend or "auto",
+            provider_used=self.name,
+            model=request.model,
+            latency_ms=timer.elapsed_ms,
+            tokens_generated=response.usage.completion_tokens if response.usage else 0,
+            constraint_type=constraint_type.value,
+        )
+
     @classmethod
     def supported_constraints(cls) -> list[str]:
         return ["json_schema", "regex", "grammar", "choice"]

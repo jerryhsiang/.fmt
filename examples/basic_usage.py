@@ -130,6 +130,43 @@ def example_status() -> None:
     fmt.status()
 
 
+async def example_async() -> None:
+    """Use async methods for non-blocking generation."""
+    import asyncio
+
+    fmt = Fmt()
+
+    # agenerate returns parsed output, just like generate
+    result = await fmt.agenerate(
+        model="ollama/llama3",
+        prompt="Extract: Jane Doe, 28 years old, jane@example.com",
+        schema=User,
+    )
+    print(f"Async User: {result}")
+
+    # agenerate_raw returns full GenerateResult metadata
+    raw_result = await fmt.agenerate_raw(
+        model="ollama/llama3",
+        prompt="Classify: 'The service was terrible'",
+        choice=["positive", "negative", "neutral"],
+    )
+    print(f"Async Choice: {raw_result.parsed}")
+    print(f"Async Latency: {raw_result.latency_ms:.1f}ms")
+
+    # Run multiple generations concurrently
+    tasks = [
+        fmt.agenerate(
+            model="ollama/llama3",
+            prompt=f"Extract: User {i}, age {20 + i}, user{i}@example.com",
+            schema=User,
+        )
+        for i in range(3)
+    ]
+    results = await asyncio.gather(*tasks)
+    for r in results:
+        print(f"  {r}")
+
+
 if __name__ == "__main__":
     print("=== fmtgen Status ===")
     example_status()
@@ -147,3 +184,7 @@ if __name__ == "__main__":
     # print()
     # print("=== Grammar (vLLM) ===")
     # example_grammar()
+    # print()
+    # print("=== Async ===")
+    # import asyncio
+    # asyncio.run(example_async())

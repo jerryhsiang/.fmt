@@ -253,6 +253,38 @@ print(result.constraint_type) # "json_schema"
 print(result.to_dict())
 ```
 
+### Async Support
+
+Every method has an async counterpart. Use `agenerate()` and `agenerate_raw()` for async workflows.
+
+```python
+import asyncio
+from fmtgen import Fmt
+from pydantic import BaseModel
+
+class User(BaseModel):
+    name: str
+    age: int
+
+async def main():
+    fmt = Fmt()
+
+    # Single async call
+    user = await fmt.agenerate(
+        model="openai/gpt-4o-mini",
+        prompt="Extract: Jane Smith, 28",
+        schema=User,
+    )
+
+    # Concurrent calls
+    users = await asyncio.gather(
+        fmt.agenerate(model="openai/gpt-4o-mini", prompt="Extract: Alice, 30", schema=User),
+        fmt.agenerate(model="openai/gpt-4o-mini", prompt="Extract: Bob, 25", schema=User),
+    )
+
+asyncio.run(main())
+```
+
 ---
 
 ## Supported Backends & Providers
@@ -491,21 +523,19 @@ class GenerateResult:
 
 ## How It Compares
 
+fmtgen does not compete with Outlines, XGrammar, or llguidance — it wraps them. The value is the unified interface, not the engine.
+
 | | **fmtgen** | **Outlines** | **Instructor** | **OpenAI SDK** |
 |---|---|---|---|---|
-| Multi-backend | Yes (all 4) | No (Outlines only) | No | No |
+| Multi-backend | Yes (wraps all 4) | No (Outlines only) | No | No |
 | Multi-provider | Yes (5) | No (local only) | Yes | No (OpenAI only) |
 | JSON Schema | Yes | Yes | Yes | Yes |
-| Regex | Yes | Yes | No | No |
-| Grammar (CFG) | Yes | Yes | No | No |
+| Regex | Yes (via vLLM) | Yes | No | No |
+| Grammar (CFG) | Yes (via vLLM) | Yes | No | No |
+| Async | Yes | Yes | Yes | Yes |
 | Pydantic v2 | Yes | Yes | Yes | Partial |
-| Benchmarking | Built-in | No | No | No |
-| Error suggestions | Yes | No | No | No |
-| Zero config | Yes | No | Yes | Yes |
 
-**Key differentiator:** fmtgen does not compete with Outlines, XGrammar, or llguidance — it wraps them. The value is the unified interface, not the engine.
-
-**Closest competitor:** [Instructor](https://github.com/jxnl/instructor) by Jason Liu. Instructor wraps API providers with Pydantic but doesn't support local backends, regex, grammar, or benchmarking. fmtgen covers a broader surface.
+The closest comparison is [Instructor](https://github.com/jxnl/instructor) by Jason Liu — a mature, battle-tested library for structured LLM outputs. Instructor focuses on API providers with retries and validation. fmtgen takes a different approach: wrapping both API providers *and* local constrained decoding backends behind one interface, so you can switch between cloud and local inference without changing code.
 
 ---
 
@@ -523,7 +553,6 @@ mypy fmtgen/          # type check
 ### Areas we'd love help with
 
 - **New provider adapters** (Google Gemini, Together AI, Fireworks, Groq)
-- **Async support** (`async generate()`)
 - **Streaming** for backends that support it
 - **More examples** and documentation
 - **Benchmarks** on different hardware and model sizes

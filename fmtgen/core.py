@@ -89,6 +89,70 @@ class Fmt:
             ),
         )
 
+    async def agenerate(
+        self,
+        model: str,
+        prompt: str,
+        schema: type[BaseModel] | None = None,
+        regex: str | None = None,
+        grammar: str | None = None,
+        choice: list[str] | None = None,
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+    ) -> BaseModel | str:
+        result = await self.agenerate_raw(
+            model=model,
+            prompt=prompt,
+            schema=schema,
+            regex=regex,
+            grammar=grammar,
+            choice=choice,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        parsed: BaseModel | str = result.parsed
+        return parsed
+
+    async def agenerate_raw(
+        self,
+        model: str,
+        prompt: str,
+        schema: type[BaseModel] | None = None,
+        regex: str | None = None,
+        grammar: str | None = None,
+        choice: list[str] | None = None,
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+    ) -> GenerateResult:
+        request = GenerateRequest(
+            model=model,
+            prompt=prompt,
+            schema=schema,
+            regex=regex,
+            grammar=grammar,
+            choice=choice,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            backend=self._backend,
+        )
+        request.validate_constraints()
+
+        provider_name = request.provider_name
+
+        if provider_name and provider_name in ProviderRegistry.list_providers():
+            kwargs = self._provider_kwargs.get(provider_name, {})
+            provider = ProviderRegistry.get(provider_name, **kwargs)
+            return await provider.agenerate(request)
+
+        raise GenerationError(
+            f"Cannot route model '{model}'. "
+            f"Use format 'provider/model_name' (e.g., 'openai/gpt-4o', 'ollama/llama3').",
+            suggestion=(
+                f"Available providers: {', '.join(ProviderRegistry.list_providers())}\n"
+                "For local models, use 'ollama/model_name' or 'vllm/model_name'."
+            ),
+        )
+
     def status(self) -> None:
         print("fmtgen Backend Status")
         print("=" * 50)
