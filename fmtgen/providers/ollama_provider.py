@@ -55,22 +55,29 @@ class OllamaProvider(BaseProvider):
                 )
                 resp.raise_for_status()
             except httpx.HTTPStatusError as e:
-                raise ProviderError("ollama", f"HTTP {e.response.status_code}: {e.response.text}")
-            except httpx.ConnectError:
+                raise ProviderError(
+                    "ollama", f"HTTP {e.response.status_code}: {e.response.text}"
+                ) from e
+            except httpx.ConnectError as e:
                 raise ProviderError(
                     "ollama",
                     f"Cannot connect to Ollama at {self._base_url}. "
                     "Is Ollama running? Start with: ollama serve",
-                )
+                ) from e
             except Exception as e:
-                raise ProviderError("ollama", str(e))
+                raise ProviderError("ollama", str(e)) from e
 
         data = resp.json()
         raw = data.get("response", "")
 
         parsed: Any = raw
         if request.schema is not None:
-            parsed_data = json.loads(raw)
+            try:
+                parsed_data = json.loads(raw)
+            except json.JSONDecodeError as e:
+                raise ProviderError(
+                    "ollama", f"Failed to parse JSON from model output: {raw[:200]}"
+                ) from e
             parsed = request.schema.model_validate(parsed_data)
         elif request.choice is not None:
             parsed = raw.strip().strip('"')

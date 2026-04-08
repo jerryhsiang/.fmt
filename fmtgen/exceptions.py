@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-class StructGenError(Exception):
+class FmtError(Exception):
     def __init__(self, message: str, suggestion: str | None = None) -> None:
         self.suggestion = suggestion
         full_message = message
@@ -10,7 +10,7 @@ class StructGenError(Exception):
         super().__init__(full_message)
 
 
-class BackendNotAvailableError(StructGenError):
+class BackendNotAvailableError(FmtError):
     def __init__(self, backend: str, available: list[str] | None = None) -> None:
         available_str = ", ".join(available) if available else "none"
         super().__init__(
@@ -22,7 +22,7 @@ class BackendNotAvailableError(StructGenError):
         )
 
 
-class NoBackendAvailableError(StructGenError):
+class NoBackendAvailableError(FmtError):
     def __init__(self) -> None:
         super().__init__(
             "No constrained decoding backends are available.",
@@ -36,7 +36,7 @@ class NoBackendAvailableError(StructGenError):
         )
 
 
-class UnsupportedConstraintError(StructGenError):
+class UnsupportedConstraintError(FmtError):
     def __init__(
         self, backend: str, constraint_type: str, supported: list[str] | None = None
     ) -> None:
@@ -50,7 +50,7 @@ class UnsupportedConstraintError(StructGenError):
         )
 
 
-class ProviderError(StructGenError):
+class ProviderError(FmtError):
     def __init__(self, provider: str, message: str) -> None:
         super().__init__(
             f"Provider '{provider}' returned an error: {message}",
@@ -61,7 +61,7 @@ class ProviderError(StructGenError):
         )
 
 
-class SchemaValidationError(StructGenError):
+class SchemaValidationError(FmtError):
     def __init__(self, schema_name: str, raw_output: str, validation_error: str) -> None:
         super().__init__(
             (
@@ -78,5 +78,5 @@ class SchemaValidationError(StructGenError):
         )
 
 
-class GenerationError(StructGenError):
+class GenerationError(FmtError):
     pass

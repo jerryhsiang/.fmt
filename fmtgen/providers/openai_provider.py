@@ -18,11 +18,11 @@ class OpenAIProvider(BaseProvider):
     def _get_client(self) -> Any:
         try:
             from openai import OpenAI
-        except ImportError:
+        except ImportError as e:
             raise ProviderError(
                 "openai",
                 "openai package is not installed. Install with: pip install fmtgen[openai]",
-            )
+            ) from e
         return OpenAI(**self._kwargs)
 
     def generate(self, request: GenerateRequest) -> GenerateResult:
@@ -40,7 +40,7 @@ class OpenAIProvider(BaseProvider):
             "model": request.model_name,
             "messages": messages,
             "temperature": request.temperature,
-            "max_tokens": request.max_tokens,
+            "max_completion_tokens": request.max_tokens,
         }
 
         if constraint_type == ConstraintType.JSON_SCHEMA and request.schema is not None:
@@ -65,13 +65,22 @@ class OpenAIProvider(BaseProvider):
             try:
                 response = client.chat.completions.create(**call_kwargs)
             except Exception as e:
-                raise ProviderError("openai", str(e))
+                raise ProviderError("openai", str(e)) from e
 
+        if not response.choices:
+            raise ProviderError(
+                "openai", "API returned empty choices (content may have been filtered)"
+            )
         raw = response.choices[0].message.content or ""
 
         parsed: Any = raw
         if request.schema is not None:
-            data = json.loads(raw)
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as e:
+                raise ProviderError(
+                    "openai", f"Failed to parse JSON from model output: {raw[:200]}"
+                ) from e
             parsed = request.schema.model_validate(data)
 
         return GenerateResult(

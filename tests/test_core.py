@@ -7,10 +7,10 @@ from pydantic import BaseModel, Field
 
 from fmtgen.exceptions import (
     BackendNotAvailableError,
+    FmtError,
     GenerationError,
     NoBackendAvailableError,
     SchemaValidationError,
-    StructGenError,
     UnsupportedConstraintError,
 )
 from fmtgen.schema import pydantic_to_json_schema, resolve_refs, validate_json_output
@@ -211,19 +211,37 @@ class TestSchema:
         resolved = resolve_refs(schema)
         assert resolved == {"type": "object", "properties": {"x": {"type": "string"}}}
 
+    def test_repeated_calls_no_mutation(self) -> None:
+        """Calling pydantic_to_json_schema twice should produce identical results."""
+        schema1 = pydantic_to_json_schema(UserWithAddress)
+        schema2 = pydantic_to_json_schema(UserWithAddress)
+        assert schema1 == schema2
+
+    def test_self_referential_schema(self) -> None:
+        """Self-referential models should not cause infinite recursion."""
+
+        class TreeNode(BaseModel):
+            value: str
+            children: list[TreeNode] = []
+
+        TreeNode.model_rebuild()
+        schema = pydantic_to_json_schema(TreeNode)
+        assert schema["type"] == "object"
+        assert "value" in schema["properties"]
+
 
 # --- Exception Tests ---
 
 
 class TestExceptions:
     def test_struct_gen_error_with_suggestion(self) -> None:
-        err = StructGenError("Something failed", suggestion="Try this fix")
+        err = FmtError("Something failed", suggestion="Try this fix")
         assert "Something failed" in str(err)
         assert "Try this fix" in str(err)
         assert err.suggestion == "Try this fix"
 
     def test_struct_gen_error_without_suggestion(self) -> None:
-        err = StructGenError("Something failed")
+        err = FmtError("Something failed")
         assert "Something failed" in str(err)
         assert err.suggestion is None
 

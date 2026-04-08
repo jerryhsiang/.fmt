@@ -18,11 +18,11 @@ class AnthropicProvider(BaseProvider):
     def _get_client(self) -> Any:
         try:
             from anthropic import Anthropic
-        except ImportError:
+        except ImportError as e:
             raise ProviderError(
                 "anthropic",
                 "anthropic package is not installed. Install with: pip install fmtgen[anthropic]",
-            )
+            ) from e
         return Anthropic(**self._kwargs)
 
     def generate(self, request: GenerateRequest) -> GenerateResult:
@@ -56,7 +56,7 @@ class AnthropicProvider(BaseProvider):
                         messages=[{"role": "user", "content": request.prompt}],
                     )
                 except Exception as e:
-                    raise ProviderError("anthropic", str(e))
+                    raise ProviderError("anthropic", str(e)) from e
 
             tool_result = None
             for block in response.content:
@@ -87,8 +87,10 @@ class AnthropicProvider(BaseProvider):
                         messages=[{"role": "user", "content": prompt}],
                     )
                 except Exception as e:
-                    raise ProviderError("anthropic", str(e))
+                    raise ProviderError("anthropic", str(e)) from e
 
+            if not response.content:
+                raise ProviderError("anthropic", "API returned empty content")
             raw = response.content[0].text
             parsed = raw.strip()
         else:

@@ -25,12 +25,12 @@ class VllmProvider(BaseProvider):
     def _get_client(self) -> Any:
         try:
             from openai import OpenAI
-        except ImportError:
+        except ImportError as e:
             raise ProviderError(
                 "vllm",
                 "openai package is required for vLLM provider. "
                 "Install with: pip install fmtgen[openai]",
-            )
+            ) from e
         return OpenAI(base_url=self._base_url, api_key="EMPTY", **self._kwargs)
 
     def generate(self, request: GenerateRequest) -> GenerateResult:
@@ -63,13 +63,22 @@ class VllmProvider(BaseProvider):
                     extra_body=extra_body if extra_body else None,
                 )
             except Exception as e:
-                raise ProviderError("vllm", str(e))
+                raise ProviderError("vllm", str(e)) from e
 
+        if not response.choices:
+            raise ProviderError(
+                "vllm", "API returned empty choices (content may have been filtered)"
+            )
         raw = response.choices[0].message.content or ""
 
         parsed: Any = raw
         if request.schema is not None:
-            data = json.loads(raw)
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as e:
+                raise ProviderError(
+                    "vllm", f"Failed to parse JSON from model output: {raw[:200]}"
+                ) from e
             parsed = request.schema.model_validate(data)
 
         return GenerateResult(
